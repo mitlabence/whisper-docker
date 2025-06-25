@@ -9,7 +9,7 @@ Then build the docker container when in the repo directory:
 
 
 Run it (listening on port 5000):
-`docker run -p 5000:5000 whisper-server-small`
+`docker run -p 5000:5000 whisper-server-tiny`
 
 
 
