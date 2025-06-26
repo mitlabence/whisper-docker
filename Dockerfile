@@ -5,10 +5,10 @@ RUN pip install --upgrade pip
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Preload Whisper tiny model
-RUN python3 -c "import whisper; whisper.load_model('tiny')"
-COPY app.py .
+# Preload Whisper model
+RUN python3 -c "import whisper; whisper.load_model('turbo')"
+COPY whisper-docker.py .
 # TODO: persist model cache: ENV XDG_CACHE_HOME=/app/cache then mount a volume to /app/cache
 # expose the port that app.py uses
 EXPOSE 5000  
-CMD ["python", "app.py"]
+CMD ["python", "whisper-docker.py"]
