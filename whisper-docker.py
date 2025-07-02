@@ -1,27 +1,42 @@
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.responses import JSONResponse
 import whisper
 import os
+from pathlib import Path
+import shutil
 
-app = Flask(__name__)
+MODEL_NAME = os.getenv("MODEL_NAME", "small")  # "small" as fallback model
 
-# Load Whisper model (you can change to 'base', 'small', 'large', etc.)
-model = whisper.load_model("turbo")
+app = FastAPI()
 
-@app.route("/transcribe", methods=["POST"])
-def transcribe_audio():
-    # TODO: might want to go lower level, see Python usage section in https://github.com/openai/whisper
-    if "audio" not in request.files:
-        return jsonify({"error": "No audio file provided"}), 400
-    audio_file = request.files["audio"]
-    file_path = f"/tmp/{audio_file.filename}"
-    audio_file.save(file_path)
+# Load the Whisper model once at startup
+model = whisper.load_model(MODEL_NAME)
+
+@app.post("/test")
+def test_endpoint():
+    return JSONResponse(content={"message": f"whisper-docker: running model {MODEL_NAME}"})
+
+@app.get("/healthcheck")
+def health_check():
+    return JSONResponse(content={"status": "ok"})
+
+@app.post("/transcribe")
+async def transcribe_audio(audio: UploadFile = File(...)):
+    if audio.content_type not in ["audio/wav", "audio/mpeg", "audio/mp3", "audio/webm"]:
+        raise HTTPException(status_code=400, detail="Unsupported audio type")
+
+    # Save uploaded file temporarily
+    tmp_dir = Path("/tmp")
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = tmp_dir / audio.filename
+
+    with tmp_path.open("wb") as buffer:
+        shutil.copyfileobj(audio.file, buffer)
+
     try:
-        result = model.transcribe(file_path)
-        return jsonify({"text": result["text"]})
+        result = model.transcribe(str(tmp_path))
+        return {"text": result["text"]}
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}") from e
     finally:
-        os.remove(file_path)
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+        tmp_path.unlink(missing_ok=True)
